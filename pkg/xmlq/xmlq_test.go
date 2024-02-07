@@ -11,17 +11,14 @@ import (
 
 func TestMarshalIndent(t *testing.T) {
 	t.Run("note.xml", func(t *testing.T) {
-		output := marshal(t, filepath.Join("testdata", "note.xml"))
-		fmt.Printf("\n---\n%s\n---\n", string(output))
+		marshal(t, filepath.Join("testdata", "note.xml"), filepath.Join("testdata", "note.expected.xml"))
 	})
-
 	t.Run("pacs_008.xml", func(t *testing.T) {
-		output := marshal(t, filepath.Join("testdata", "pacs_008.xml"))
-		fmt.Printf("\n---\n%s\n---\n", string(output))
+		marshal(t, filepath.Join("testdata", "pacs_008.xml"), filepath.Join("testdata", "pacs_008.xml"))
 	})
 }
 
-func marshal(t *testing.T, path string) []byte {
+func marshal(t *testing.T, path, expected string) {
 	t.Helper()
 
 	fd, err := os.Open(path)
@@ -39,5 +36,10 @@ func marshal(t *testing.T, path string) []byte {
 	})
 	require.NoError(t, err)
 
-	return output
+	bs, err := os.ReadFile(expected)
+	require.NoError(t, err)
+
+	fmt.Printf("\n---\n%s\n---\n", string(output))
+
+	require.Equal(t, string(bs), string(output))
 }

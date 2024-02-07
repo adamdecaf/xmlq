@@ -72,58 +72,75 @@ read:
 			switch data[i] {
 			case '/':
 				// end tag
-				insideStartTag = false
-				insideEndTag = true
+				depthLevel -= 1
+				if !insideStartTag && !insideEndTag {
+					buf.WriteString("\n")
+				}
 				buf.WriteString("</")
+				insideStartTag = false
+				insideEndTag = false
 
 			case '?':
 				// XML header, do nothing
-				insideEndTag = true
 				buf.WriteString("<?")
+				// insideEndTag = true
+				insideStartTag = true
+
+			case ' ':
+				buf.WriteString(fmt.Sprintf("S "))
+				if insideStartTag {
+					buf.Write(data[i : i+1])
+				}
 
 			default:
 				// start tag
-				if insideStartTag {
-					doubleNewLine = doubleNewLine && (insideStartTag && !insideEndTag)
-					if !doubleNewLine {
-						buf.WriteString("\n")
-
-						padding := fmt.Sprintf("%s%s", options.Prefix, strings.Repeat(options.Indent, depthLevel))
-						if padding != "" {
-							buf.WriteString(padding)
-						}
-					}
-				}
+				// If we're already inside a start tag move that to a new line
+				// buf.WriteString(fmt.Sprintf("-insideStartTag=%v  depthLevel=%d-", insideStartTag, depthLevel))
+				// buf.WriteString("B\n")
 				insideStartTag = true
 				depthLevel += 1
+
+				// insideStartTag = true
+				// insideEndTag = false
+				// buf.WriteString("\n")
+				// if insideStartTag {
+
+				// buf.WriteString(fmt.Sprintf("- insideStartTag=%v  insideEndTag=%v  depthLevel=%d-", insideStartTag, insideEndTag, depthLevel))
+				buf.WriteString("\n")
+
+				padding := fmt.Sprintf("%s%s", options.Prefix, strings.Repeat(options.Indent, depthLevel))
+				buf.WriteString(padding)
+
+				// depthLevel += 1
 				buf.WriteString("<")
 				buf.Write(data[i : i+1])
 			}
 
 		case '/':
 			buf.WriteString("/")
-			insideStartTag = false
-			insideEndTag = true
+
+		case '?': // xml header
+			buf.WriteString("?")
+			depthLevel -= 1
+			insideStartTag = true
 
 		case '>':
 			buf.WriteString(">")
-			if !insideStartTag && insideEndTag {
-				buf.WriteString("\n")
-
-				depthLevel -= 1
-				if depthLevel < 0 {
-					depthLevel = 0
-				}
-
-				padding := fmt.Sprintf("%s%s", options.Prefix, strings.Repeat(options.Indent, depthLevel))
-				if padding != "" {
-					buf.WriteString(padding)
-				}
+			if insideEndTag {
+				// buf.WriteString("A\n")
+				insideEndTag = false
 			}
-			insideEndTag = false
 
 		case '\n', '\r':
 			// skip newlines since we add them
+
+		case ' ':
+			// Only write spaces that are inside of elements
+			// buf.WriteString(fmt.Sprintf("- insideStartTag=%v  insideEndTag=%v  depthLevel=%d-", insideStartTag, insideEndTag, depthLevel))
+			// if insideStartTag {
+			// 	buf.WriteString("S")
+			// 	buf.Write(data[i : i+1])
+			// }
 
 		default:
 			buf.Write(data[i : i+1])
@@ -132,6 +149,11 @@ read:
 	goto read
 
 done:
+
+	_ = insideStartTag
+	_ = insideEndTag
+	_ = doubleNewLine
+
 	return buf.Bytes(), nil
 }
 
