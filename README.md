@@ -11,9 +11,15 @@ xmlq is a Go library for pretty printing xml and masking element values.
 ## Usage
 
 ```go
-var xmlData io.Reader
+import (
+	"github.com/adamdecaf/xmlq/pkg/xmlq"
+)
 
-output, err := MarshalIndent(xmlData, &Options{
+var (
+	xmlData io.Reader
+)
+
+output, err := xmlq.MarshalIndent(xmlData, &Options{
 	Indent: "  ", // two spaces
 	Masks: []Mask{
 		{
