@@ -1,6 +1,7 @@
 package xmlq
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -57,6 +58,9 @@ func marshal(t *testing.T, path, expected string) {
 
 	bs, err := os.ReadFile(expected)
 	require.NoError(t, err)
+
+	// Strip windows quotes
+	bs = bytes.ReplaceAll(bs, []byte("\r\n"), []byte("\n"))
 
 	require.Equal(t, string(bs), string(output))
 }
