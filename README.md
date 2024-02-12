@@ -8,6 +8,28 @@
 
 xmlq is a Go library for pretty printing xml and masking element values.
 
+## Usage
+
+```go
+var xmlData io.Reader
+
+output, err := MarshalIndent(xmlData, &Options{
+	Indent: "  ", // two spaces
+	Masks: []Mask{
+		{
+			// <ct:Id>11000179512199001</ct:Id>
+			Name: "Id",
+			Mask: ShowLastFour,
+		},
+		{
+			// <ct:Nm>John Doe</ct:Nm>
+			Name: "Nm",
+			Mask: ShowWordStart,
+		},
+	},
+})
+```
+
 ## Supported and tested platforms
 
 - 64-bit Linux (Ubuntu, Debian), macOS, and Windows
