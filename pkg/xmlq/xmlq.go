@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -23,14 +24,20 @@ type Mask struct {
 type MaskingType string
 
 var (
-	ShowLastFour MaskingType = "show-last-four"
-	ShowMiddle   MaskingType = "show-middle"
-	ShowNone     MaskingType = "show-none"
+	ShowLastFour  MaskingType = "show-last-four"
+	ShowMiddle    MaskingType = "show-middle"
+	ShowWordStart MaskingType = "show-word-start"
+	ShowNone      MaskingType = "show-none"
 )
 
+// MarshalIndent will unmarshal and remarshal XML with specified element values masked.
+// Masking matches on element names and applying the masking logic specified.
+//
+// The XML is not remarshaled exactly as it arrives.
+//   - Self-closing elements are expanded into start and end tags.
+//   - Namespace prefixes are generally preserved, but namespace attributes may appear in the output.
+//   - Certain characters are escaped with their xml entity values.
 func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
-	var depthLevel int
-
 	var options Options
 	if opts != nil {
 		options = *opts
@@ -39,124 +46,134 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
-	data := make([]byte, 32)
-	size := len(data)
 
-	var insideStartTag bool
-	var insideEndTag bool
-	var doubleNewLine bool
+	d := xml.NewDecoder(input)
+	e := xml.NewEncoder(&buf)
+	e.Indent(options.Prefix, options.Indent)
 
-read:
-	n, err := io.ReadFull(input, data)
-	if err == io.EOF {
-		goto done
-	}
-	size = n
+	var applicableMask *Mask
 
-	// < is the last character, so return it to the input
-	if data[size-1] == '<' {
-		size -= 1
-		input = io.MultiReader(strings.NewReader("<"), input)
-	}
-
-	for i := 0; i < size; i++ {
-		switch data[i] {
-		case '<':
-			if i+1 >= size {
-				// There's nothing else read in the buffer
-				panic("bad thing")
+	for {
+		token, err := d.RawToken()
+		if err != nil {
+			if err == io.EOF {
+				break
 			}
+			return nil, err
+		}
 
-			// Check what tag is coming
-			i += 1
-			switch data[i] {
-			case '/':
-				// end tag
-				depthLevel -= 1
-				if !insideStartTag && !insideEndTag {
-					buf.WriteString("\n")
-				}
-				buf.WriteString("</")
-				insideStartTag = false
-				insideEndTag = false
+		// process token
+		switch t := token.(type) {
+		case xml.ProcInst:
+			e.EncodeToken(t)
+			e.Flush()
+			buf.WriteString("\n")
 
-			case '?':
-				// XML header, do nothing
-				buf.WriteString("<?")
-				// insideEndTag = true
-				insideStartTag = true
-
-			case ' ':
-				buf.WriteString(fmt.Sprintf("S "))
-				if insideStartTag {
-					buf.Write(data[i : i+1])
-				}
-
-			default:
-				// start tag
-				// If we're already inside a start tag move that to a new line
-				// buf.WriteString(fmt.Sprintf("-insideStartTag=%v  depthLevel=%d-", insideStartTag, depthLevel))
-				// buf.WriteString("B\n")
-				insideStartTag = true
-				depthLevel += 1
-
-				// insideStartTag = true
-				// insideEndTag = false
-				// buf.WriteString("\n")
-				// if insideStartTag {
-
-				// buf.WriteString(fmt.Sprintf("- insideStartTag=%v  insideEndTag=%v  depthLevel=%d-", insideStartTag, insideEndTag, depthLevel))
-				buf.WriteString("\n")
-
-				padding := fmt.Sprintf("%s%s", options.Prefix, strings.Repeat(options.Indent, depthLevel))
-				buf.WriteString(padding)
-
-				// depthLevel += 1
-				buf.WriteString("<")
-				buf.Write(data[i : i+1])
+		case xml.StartElement:
+			// Look for a mask to apply later on
+			applicableMask = findMask(t, options.Masks)
+			if t.Name.Space != "" {
+				t.Name.Local = fmt.Sprintf("%s:%s", t.Name.Space, t.Name.Local)
+				t.Name.Space = ""
 			}
+			e.EncodeToken(t)
 
-		case '/':
-			buf.WriteString("/")
+		case xml.CharData:
+			elm := applyMask(t, applicableMask)
+			e.EncodeToken(elm)
+			applicableMask = nil
 
-		case '?': // xml header
-			buf.WriteString("?")
-			depthLevel -= 1
-			insideStartTag = true
-
-		case '>':
-			buf.WriteString(">")
-			if insideEndTag {
-				// buf.WriteString("A\n")
-				insideEndTag = false
+		case xml.EndElement:
+			if t.Name.Space != "" {
+				t.Name.Local = fmt.Sprintf("%s:%s", t.Name.Space, t.Name.Local)
+				t.Name.Space = ""
 			}
-
-		case '\n', '\r':
-			// skip newlines since we add them
-
-		case ' ':
-			// Only write spaces that are inside of elements
-			// buf.WriteString(fmt.Sprintf("- insideStartTag=%v  insideEndTag=%v  depthLevel=%d-", insideStartTag, insideEndTag, depthLevel))
-			// if insideStartTag {
-			// 	buf.WriteString("S")
-			// 	buf.Write(data[i : i+1])
-			// }
+			e.EncodeToken(t)
 
 		default:
-			buf.Write(data[i : i+1])
+			e.EncodeToken(t)
+		}
+
+		err = e.Flush()
+		if err != nil {
+			return nil, fmt.Errorf("flushing tokens: %w", err)
 		}
 	}
-	goto read
 
-done:
+	// Remove duplicate newlines
+	out := bytes.ReplaceAll(buf.Bytes(), []byte("\n  \n  "), []byte("\n  "))
+	out = bytes.ReplaceAll(out, []byte("\n\n"), []byte("\n"))
 
-	_ = insideStartTag
-	_ = insideEndTag
-	_ = doubleNewLine
-
-	return buf.Bytes(), nil
+	return out, e.Close()
 }
 
-func applyMaskIfNeeded(elm xml.Name, input string) string {
-	return input
+func findMask(start xml.StartElement, masks []Mask) *Mask {
+	for i := range masks {
+		namesMatch := strings.EqualFold(start.Name.Local, masks[i].Name)
+
+		spacesMatch := true // default to assuming namespaces match
+		if start.Name.Space != "" && masks[i].Space != "" {
+			spacesMatch = strings.EqualFold(start.Name.Space, masks[i].Space)
+		}
+
+		if namesMatch && spacesMatch {
+			return &masks[i]
+		}
+	}
+	return nil
+}
+
+func applyMask(elm xml.CharData, mask *Mask) xml.CharData {
+	if mask == nil {
+		return elm
+	}
+
+	// We have a mask.MaskingType
+	switch mask.Mask {
+	case ShowLastFour:
+		if len(elm) < 5 {
+			return xml.CharData(bytes.Repeat([]byte("*"), len(elm)))
+		}
+		return xml.CharData(append(
+			bytes.Repeat([]byte("*"), len(elm)-4),
+			elm[len(elm)-4:]...,
+		))
+
+	case ShowMiddle:
+		if len(elm) < 2 {
+			return xml.CharData(bytes.Repeat([]byte("*"), len(elm)))
+		}
+		// We want to show less than half of the content
+		quarter := (len(elm) / 4) + 1
+		if len(elm) == 4 {
+			quarter = 1 // special case length of four to show middle two
+		}
+		return xml.CharData(
+			slices.Concat(
+				bytes.Repeat([]byte("*"), quarter),
+				elm[quarter:len(elm)-quarter],
+				bytes.Repeat([]byte("*"), quarter),
+			),
+		)
+
+	case ShowWordStart:
+		if len(elm) == 0 {
+			return xml.CharData(nil)
+		}
+
+		fields := strings.Fields(string(elm))
+		var out string
+		for i := range fields {
+			out += fields[i][0:1] + strings.Repeat("*", len(fields[i])-1)
+			if i < len(fields)-1 {
+				out += " "
+			}
+		}
+		return xml.CharData([]byte(out))
+
+	case ShowNone:
+		return xml.CharData([]byte(strings.Repeat("*", len(elm))))
+
+	}
+	return elm
 }
