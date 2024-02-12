@@ -1,6 +1,6 @@
 # xmlq
 
-[![GoDoc](https://godoc.org/github.com/adamdecaf/xmlq?status.svg)](https://godoc.org/github.com/adamdecaf/xmlq)
+[![GoDoc](https://godoc.org/github.com/adamdecaf/xmlq?status.svg)](https://pkg.go.dev/github.com/adamdecaf/xmlq/pkg/xmlq)
 [![Build Status](https://github.com/adamdecaf/xmlq/workflows/Go/badge.svg)](https://github.com/adamdecaf/xmlq/actions)
 [![Coverage Status](https://codecov.io/gh/adamdecaf/xmlq/branch/master/graph/badge.svg)](https://codecov.io/gh/adamdecaf/xmlq)
 [![Go Report Card](https://goreportcard.com/badge/github.com/adamdecaf/xmlq)](https://goreportcard.com/report/github.com/adamdecaf/xmlq)
