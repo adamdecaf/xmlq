@@ -6,7 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/adamdecaf/xmlq)](https://goreportcard.com/report/github.com/adamdecaf/xmlq)
 [![Apache 2 License](https://img.shields.io/badge/license-Apache2-blue.svg)](https://raw.githubusercontent.com/adamdecaf/xmlq/master/LICENSE)
 
-xmlq is a Go library for pretty printing xml and masking element values.
+xmlq is a Go library for pretty printing xml and masking element values. XML inside of CDATA stanzas is also masked and indented.
 
 ## Usage
 
