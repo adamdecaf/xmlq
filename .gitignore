@@ -20,4 +20,6 @@
 # Go workspace file
 go.work
 
+/bin/
+/coverage.txt
 /lint-project.sh
