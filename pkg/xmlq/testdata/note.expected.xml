@@ -4,4 +4,6 @@
   <from>*an*</from>
   <heading>Reminder</heading>
   <body>Don&#39;t forget me this weekend!</body>
+  <extra>  Preserve spaces on both sides  </extra>
+  <additional>5 &gt; 3</additional>
 </note>

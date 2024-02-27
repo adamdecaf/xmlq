@@ -79,8 +79,27 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 			e.EncodeToken(t)
 
 		case xml.CharData:
-			elm := applyMask(t, applicableMask)
-			e.EncodeToken(elm)
+			var elm xml.CharData = t
+			// If we are inside a CDATA clause check if it's xml and format it like xml
+			start, end, middle := []byte("<"), []byte(">"), []byte("><")
+			if bytes.HasPrefix(elm, start) && bytes.HasSuffix(elm, end) && bytes.Contains(elm, middle) {
+				elm, err = MarshalIndent(bytes.NewReader(elm), opts)
+				if err != nil {
+					return nil, fmt.Errorf("rendering inner xml: %w", err)
+				}
+				if err := e.Flush(); err != nil {
+					return nil, fmt.Errorf("flushing before inner xml write: %w", err)
+				}
+				buf.WriteString("\n")
+				buf.Write(elm)
+				buf.WriteString("\n")
+				if err := e.Flush(); err != nil {
+					return nil, fmt.Errorf("flushing after inner xml write: %w", err)
+				}
+			} else {
+				elm = applyMask(elm, applicableMask)
+				e.EncodeToken(elm)
+			}
 			applicableMask = nil
 
 		case xml.EndElement:
