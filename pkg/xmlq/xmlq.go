@@ -42,7 +42,7 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 	if opts != nil {
 		options = *opts
 	} else {
-		opts.Indent = "  "
+		options.Indent = "  "
 	}
 
 	var buf bytes.Buffer
@@ -83,7 +83,7 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 			// If we are inside a CDATA clause check if it's xml and format it like xml
 			start, end, middle := []byte("<"), []byte(">"), []byte("><")
 			if bytes.HasPrefix(elm, start) && bytes.HasSuffix(elm, end) && bytes.Contains(elm, middle) {
-				elm, err = MarshalIndent(bytes.NewReader(elm), opts)
+				elm, err = MarshalIndent(bytes.NewReader(elm), &options)
 				if err != nil {
 					return nil, fmt.Errorf("rendering inner xml: %w", err)
 				}
@@ -183,7 +183,9 @@ func applyMask(elm xml.CharData, mask *Mask) xml.CharData {
 		fields := strings.Fields(string(elm))
 		var out string
 		for i := range fields {
-			out += fields[i][0:1] + strings.Repeat("*", len(fields[i])-1)
+			if len(fields[i]) > 0 {
+				out += fields[i][0:1] + strings.Repeat("*", len(fields[i])-1)
+			}
 			if i < len(fields)-1 {
 				out += " "
 			}
