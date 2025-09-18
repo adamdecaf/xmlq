@@ -25,7 +25,7 @@ wasm:
 	else \
 		cp "$(WASM_123)" "$(TARGET_DIR)/wasm_exec.js"; \
 	fi
-	GOOS=js GOARCH=wasm go build -o docs/xmlq.wasm github.com/adamdecaf/xmlq/docs
+	GOOS=js GOARCH=wasm go build -o docs/xmlq.wasm ./docs/main.go
 
 .PHONY: cover-test cover-web
 cover-test:
