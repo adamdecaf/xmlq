@@ -18,7 +18,7 @@ WASM_124=$(GOROOT_PATH)/lib/wasm/wasm_exec.js
 WASM_123=$(GOROOT_PATH)/misc/wasm/wasm_exec.js
 TARGET_DIR=./docs/
 
-.PHONY: wasm
+.PHONY: wasm dist-webui
 wasm:
 	@if [ -f "$(WASM_124)" ]; then \
 		cp "$(WASM_124)" "$(TARGET_DIR)/wasm_exec.js"; \
@@ -27,7 +27,7 @@ wasm:
 	fi
 	GOOS=js GOARCH=wasm go build -o docs/xmlq.wasm ./docs/main.go
 
-dist-webui: build-webui
+dist-webui: wasm
 	git config user.name "adamdecaf-bot"
 	git config user.email "bot@ashannon.us"
 	git add ./docs/wasm_exec.js ./docs/xmlq.wasm
