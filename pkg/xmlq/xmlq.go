@@ -30,13 +30,80 @@ var (
 	ShowNone      MaskingType = "show-none"
 )
 
+func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Options) error {
+	for {
+		token, err := d.RawToken()
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		switch t := token.(type) {
+		case xml.StartElement:
+			mask := findMask(t, options.Masks)
+			*maskStack = append(*maskStack, mask)
+
+			startCopy := t
+			if startCopy.Name.Space != "" {
+				startCopy.Name.Local = fmt.Sprintf("%s:%s", startCopy.Name.Space, startCopy.Name.Local)
+				startCopy.Name.Space = ""
+			}
+			if err := e.EncodeToken(startCopy); err != nil {
+				return err
+			}
+
+		case xml.CharData:
+			elm := t
+			start, end, middle := []byte("<"), []byte(">"), []byte("><")
+			if bytes.HasPrefix(elm, start) && bytes.HasSuffix(elm, end) && bytes.Contains(elm, middle) {
+				// Recurse to process inner XML with same encoder for proper indentation
+				innerD := xml.NewDecoder(bytes.NewReader(elm))
+				if err := process(innerD, e, maskStack, options); err != nil {
+					return fmt.Errorf("rendering inner xml: %w", err)
+				}
+			} else {
+				if len(*maskStack) > 0 {
+					m := (*maskStack)[len(*maskStack)-1]
+					elm = applyMask(elm, m)
+				}
+				if err := e.EncodeToken(elm); err != nil {
+					return err
+				}
+			}
+
+		case xml.EndElement:
+			endCopy := t
+			if endCopy.Name.Space != "" {
+				endCopy.Name.Local = fmt.Sprintf("%s:%s", endCopy.Name.Space, endCopy.Name.Local)
+				endCopy.Name.Space = ""
+			}
+			if err := e.EncodeToken(endCopy); err != nil {
+				return err
+			}
+
+			if len(*maskStack) > 0 {
+				*maskStack = (*maskStack)[:len(*maskStack)-1]
+			}
+
+		default:
+			if err := e.EncodeToken(t); err != nil {
+				return err
+			}
+		}
+
+		if err := e.Flush(); err != nil {
+			return err
+		}
+	}
+}
+
 // MarshalIndent will unmarshal and remarshal XML with specified element values masked.
 // Masking matches on element names and applying the masking logic specified.
 //
-// The XML is not remarshaled exactly as it arrives.
-//   - Self-closing elements are expanded into start and end tags.
-//   - Namespace prefixes are generally preserved, but namespace attributes may appear in the output.
-//   - Certain characters are escaped with their xml entity values.
+// The XML is remarshaled with indentation while preserving the original structure,
+// including namespace prefixes. Self-closing elements are expanded by the XML decoder/encoder.
 func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 	var options Options
 	if opts != nil {
@@ -46,91 +113,31 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
-
-	d := xml.NewDecoder(input)
 	e := xml.NewEncoder(&buf)
 	e.Indent(options.Prefix, options.Indent)
 
-	var applicableMask *Mask
+	d := xml.NewDecoder(input)
 
-	for {
-		token, err := d.RawToken()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-
-		// process token
-		switch t := token.(type) {
-		case xml.ProcInst:
-			e.EncodeToken(t)
-			e.Flush()
-			buf.WriteString("\n")
-
-		case xml.StartElement:
-			// Look for a mask to apply later on
-			applicableMask = findMask(t, options.Masks)
-			if t.Name.Space != "" {
-				t.Name.Local = fmt.Sprintf("%s:%s", t.Name.Space, t.Name.Local)
-				t.Name.Space = ""
-			}
-			e.EncodeToken(t)
-
-		case xml.CharData:
-			var elm xml.CharData = t
-			// If we are inside a CDATA clause check if it's xml and format it like xml
-			start, end, middle := []byte("<"), []byte(">"), []byte("><")
-			if bytes.HasPrefix(elm, start) && bytes.HasSuffix(elm, end) && bytes.Contains(elm, middle) {
-				elm, err = MarshalIndent(bytes.NewReader(elm), &options)
-				if err != nil {
-					return nil, fmt.Errorf("rendering inner xml: %w", err)
-				}
-				if err := e.Flush(); err != nil {
-					return nil, fmt.Errorf("flushing before inner xml write: %w", err)
-				}
-				buf.WriteString("\n")
-				buf.Write(elm)
-				buf.WriteString("\n")
-				if err := e.Flush(); err != nil {
-					return nil, fmt.Errorf("flushing after inner xml write: %w", err)
-				}
-			} else {
-				elm = applyMask(elm, applicableMask)
-				e.EncodeToken(elm)
-			}
-			applicableMask = nil
-
-		case xml.EndElement:
-			if t.Name.Space != "" {
-				t.Name.Local = fmt.Sprintf("%s:%s", t.Name.Space, t.Name.Local)
-				t.Name.Space = ""
-			}
-			e.EncodeToken(t)
-
-		default:
-			e.EncodeToken(t)
-		}
-
-		err = e.Flush()
-		if err != nil {
-			return nil, fmt.Errorf("flushing tokens: %w", err)
-		}
+	var maskStack []*Mask
+	if err := process(d, e, &maskStack, &options); err != nil {
+		return nil, err
 	}
 
-	// Remove duplicate newlines
-	out := bytes.ReplaceAll(buf.Bytes(), []byte("\n  \n  "), []byte("\n  "))
-	out = bytes.ReplaceAll(out, []byte("\n\n"), []byte("\n"))
+	if err := e.Close(); err != nil {
+		return nil, err
+	}
 
-	return out, e.Close()
+	// Clean up excessive newlines
+	out := bytes.ReplaceAll(buf.Bytes(), []byte("\n\n"), []byte("\n"))
+
+	return out, nil
 }
 
 func findMask(start xml.StartElement, masks []Mask) *Mask {
 	for i := range masks {
 		namesMatch := strings.EqualFold(start.Name.Local, masks[i].Name)
 
-		spacesMatch := true // default to assuming namespaces match
+		spacesMatch := true
 		if start.Name.Space != "" && masks[i].Space != "" {
 			spacesMatch = strings.EqualFold(start.Name.Space, masks[i].Space)
 		}
@@ -147,7 +154,6 @@ func applyMask(elm xml.CharData, mask *Mask) xml.CharData {
 		return elm
 	}
 
-	// We have a mask.MaskingType
 	switch mask.Mask {
 	case ShowLastFour:
 		if len(elm) < 5 {
@@ -162,10 +168,9 @@ func applyMask(elm xml.CharData, mask *Mask) xml.CharData {
 		if len(elm) < 2 {
 			return xml.CharData(bytes.Repeat([]byte("*"), len(elm)))
 		}
-		// We want to show less than half of the content
 		quarter := (len(elm) / 4) + 1
 		if len(elm) == 4 {
-			quarter = 1 // special case length of four to show middle two
+			quarter = 1
 		}
 		return xml.CharData(
 			slices.Concat(

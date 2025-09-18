@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01" _xmlns:ct="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01" _xmlns:ct="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
   <AppHdr>
     <head:Fr>
       <head:FIId>
