@@ -27,6 +27,13 @@ wasm:
 	fi
 	GOOS=js GOARCH=wasm go build -o docs/xmlq.wasm ./docs/main.go
 
+dist-webui: build-webui
+	git config user.name "adamdecaf-bot"
+	git config user.email "bot@ashannon.us"
+	git add ./docs/wasm_exec.js ./docs/xmlq.wasm
+	git commit -m "chore: updating wasm webui [skip ci]" || echo "No changes to commit"
+	git push origin master
+
 .PHONY: cover-test cover-web
 cover-test:
 	go test -coverprofile=cover.out ./...

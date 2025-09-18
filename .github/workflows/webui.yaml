@@ -1,0 +1,31 @@
+name: Release Webui
+
+on:
+  push:
+    tags: [ "v*.*.*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  webui:
+    name: WebUI
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v6
+      with:
+        go-version: stable
+      id: go
+
+    - name: Check out code
+      uses: actions/checkout@v5
+
+    - name: Switch to master
+      run: |
+        git fetch origin
+        git checkout master
+
+    - name: Distribute
+      run: make dist-webui
