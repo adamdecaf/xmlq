@@ -127,10 +127,52 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 
-	// Clean up excessive newlines
-	out := bytes.ReplaceAll(buf.Bytes(), []byte("\n\n"), []byte("\n"))
+	raw := buf.Bytes()
 
-	return out, nil
+	lines := bytes.Split(raw, []byte("\n"))
+	var result []byte
+	blankLines := 0
+
+	for _, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+
+		// Completely empty line (only whitespace or truly empty)
+		if len(trimmed) == 0 {
+			blankLines++
+			continue // skip all consecutive blank lines
+		}
+
+		// We have real content
+
+		// If we had blank lines before this one, insert exactly ONE blank line
+		// BUT only if the previous non-blank line was a closing tag AND
+		// this line is also a closing tag at the same or higher indent level
+		// → this naturally creates spacing between major sibling blocks
+		if blankLines > 0 {
+			if isClosingTag(line) {
+				prevWasClosing := len(result) >= 2 && result[len(result)-2] == '<' && result[len(result)-1] == '/'
+				if prevWasClosing {
+					result = append(result, '\n') // one blank line between sibling blocks
+				}
+			}
+		}
+
+		result = append(result, line...)
+		result = append(result, '\n')
+		blankLines = 0
+	}
+
+	// remove trailing newline if present
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+
+	return append(result, '\n'), nil
+}
+
+func isClosingTag(line []byte) bool {
+	s := string(bytes.TrimSpace(line))
+	return len(s) > 1 && s[0] == '<' && s[1] == '/'
 }
 
 func findMask(start xml.StartElement, masks []Mask) *Mask {

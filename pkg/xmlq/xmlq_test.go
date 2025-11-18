@@ -23,6 +23,10 @@ func TestMarshalIndent(t *testing.T) {
 	t.Run("admi.002", func(t *testing.T) {
 		marshal(t, filepath.Join("testdata", "admi_002.xml"), filepath.Join("testdata", "admi_002.expected.xml"))
 	})
+
+	t.Run("pacs_028", func(t *testing.T) {
+		marshal(t, filepath.Join("testdata", "pacs_028.xml"), filepath.Join("testdata", "pacs_028.expected.xml"))
+	})
 }
 
 func marshal(t *testing.T, path, expected string) {
