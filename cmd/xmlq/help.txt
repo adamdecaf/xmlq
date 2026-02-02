@@ -1,0 +1,86 @@
+XMLQ(1)                         User Commands                        XMLQ(1)
+
+NAME
+       xmlq - pretty-print XML documents (with optional masking)
+
+SYNOPSIS
+       xmlq [OPTIONS] [FILE]...
+
+       xmlq < input.xml
+
+DESCRIPTION
+       xmlq reads XML from files or standard input and outputs a nicely
+       indented ("pretty-printed") version of the document.
+
+       It uses Go's xml.MarshalIndent under the hood and supports basic
+       control over prefix and indent strings. Basic masking support is
+       planned (but not yet active in this version).
+
+       When multiple files are given, xmlq prints each one separated by blank
+       lines. When reading from stdin, xmlq attempts to detect raw XML content
+       directly.
+
+OPTIONS
+       -prefix string
+              Prefix string used before each element (default "")
+
+       -indent string
+              Indentation string used for nested elements
+              (default "  " = two spaces)
+
+       -v     Enable verbose output
+              (shows filename headers even for single-file input)
+
+       -version
+              Print version number and exit
+
+       -h, --help
+              Show this help message (not implemented in code yet — use this page)
+
+EXIT STATUS
+       0      Success
+       1      Error parsing XML, reading file(s), or writing output
+
+EXAMPLES
+
+   Pretty-print a single file
+       xmlq config.xml
+
+   Change indentation to tabs
+       xmlq -indent $'\t' data.xml
+
+   Two-space indent with custom prefix
+       xmlq -prefix "  " -indent "    " response.xml
+
+   Read from stdin (most common usage in pipelines)
+       curl -s https://example.com/api | xmlq
+
+   Multiple files with verbose headers
+       xmlq -v file1.xml file2.xml file3.xml
+
+   Use tabs and verbose mode
+       xmlq -v -indent $'\t' *.xml
+
+NOTES
+   • Currently only pretty-printing is implemented.
+   • Masking of sensitive values (e.g. PII, keys, tokens) is planned
+     but not yet active (see commented Masks field in source).
+   • CDATA sections are expected to be handled properly in future versions.
+   • Input is read into temporary files when coming from stdin and appearing
+     to contain XML tags.
+
+BUGS / LIMITATIONS
+   • No XPath / element selection / querying yet (name is xmlq, not xmlsel)
+   • No support for --format=json or other output formats
+   • Error recovery is basic — one bad file fails the whole run
+
+AUTHOR
+       Written by Adam Shannon (@adamdecaf).
+
+LICENSE
+       Apache License 2.0
+
+SEE ALSO
+       xmllint(1), xmlstarlet(1), jq(1), yq(1)
+
+                               February 2026                         XMLQ(1)
