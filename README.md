@@ -23,6 +23,8 @@ go install github.com/adamdecaf/xmlq/cmd/xmlq@latest
 Read files
 ```
 xmlq ./pkg/xmlq/testdata/admi_002.xml
+```
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01">
   <AppHdr>
