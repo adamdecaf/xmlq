@@ -7,7 +7,39 @@
 
 xmlq is a Go library for pretty printing xml and masking element values. XML inside of CDATA stanzas is also masked and indented.
 
+## Install
+
+Download the [latest release for your architecture](https://github.com/adamdecaf/xmlq/releases/latest).
+
+You can install from source:
+```
+go install github.com/adamdecaf/xmlq/cmd/xmlq@latest
+```
+
 ## Usage
+
+### Command line
+
+Read files
+```
+xmlq ./pkg/xmlq/testdata/admi_002.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01">
+  <AppHdr>
+  ...
+  </AppHdr>
+  <MessageReject>
+  ...
+  </MessageReject>
+</Message>
+```
+
+Read from stdin
+```
+cat ./pkg/xmlq/testdata/admi_002.xml | xmlq
+```
+
+### Go library
 
 ```go
 import (
