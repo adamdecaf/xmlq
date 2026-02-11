@@ -28,6 +28,5 @@ jobs:
           distribution: goreleaser
           version: 'latest'
           args: release --clean
-          main: ./cmd/xmlq
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
