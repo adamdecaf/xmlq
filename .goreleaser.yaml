@@ -1,2 +1,8 @@
 builds:
 - main: ./cmd/xmlq/
+  ldflags:
+    - -s -w # strip debug info + DWARF
+    - -X main.Version={{ .Version }}
+    - -X main.Commit={{ .FullCommit }}
+    - -X main.Date={{ .Date }}
+    - -X github.com/adamdecaf/xmlq.Version={{ .Tag }}
