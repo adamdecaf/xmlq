@@ -355,6 +355,97 @@ func TestMixedContent(t *testing.T) {
 	require.Equal(t, "<p>Hello <b>world</b>!</p>\n", string(got))
 }
 
+func TestMixedContentMasking(t *testing.T) {
+	input := `<p>Hello <b>secret</b> world</p>`
+
+	t.Run("parent none leaves child text", func(t *testing.T) {
+		got, err := MarshalIndent(strings.NewReader(input), &Options{
+			Indent: "  ",
+			Masks:  []Mask{{Name: "p", Mask: ShowNone}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "<p>******<b>secret</b>******</p>\n", string(got))
+		require.NotContains(t, string(got), "<b>*")
+		require.NotContains(t, string(got), "<*>")
+	})
+
+	t.Run("parent word start keeps child and spacing", func(t *testing.T) {
+		got, err := MarshalIndent(strings.NewReader(input), &Options{
+			Indent: "  ",
+			Masks:  []Mask{{Name: "p", Mask: ShowWordStart}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "<p>H**** <b>secret</b> w****</p>\n", string(got))
+	})
+
+	t.Run("child mask does not hide sibling text", func(t *testing.T) {
+		got, err := MarshalIndent(strings.NewReader(input), &Options{
+			Indent: "  ",
+			Masks:  []Mask{{Name: "b", Mask: ShowNone}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "<p>Hello <b>******</b> world</p>\n", string(got))
+	})
+}
+
+func TestMaskedEntities(t *testing.T) {
+	must := func(t *testing.T, input string, mask Mask) string {
+		t.Helper()
+		out, err := MarshalIndent(strings.NewReader(input), &Options{
+			Indent: "  ",
+			Masks:  []Mask{mask},
+		})
+		require.NoError(t, err)
+		return string(out)
+	}
+
+	t.Run("ampersand is decoded before masking", func(t *testing.T) {
+		// Decoded "John&Doe" is 8 runes. The raw entity form is 12 bytes.
+		require.Equal(t, "<n>********</n>\n", must(t, `<n>John&amp;Doe</n>`, Mask{Name: "n", Mask: ShowNone}))
+		require.Equal(t, "<n>J*******</n>\n", must(t, `<n>John&amp;Doe</n>`, Mask{Name: "n", Mask: ShowWordStart}))
+	})
+
+	t.Run("hex char refs are decoded", func(t *testing.T) {
+		// &#x41;..&#x45; is ABCDE, not the entity source text.
+		require.Equal(t, "<n>*BCDE</n>\n", must(t, `<n>&#x41;&#x42;&#x43;&#x44;&#x45;</n>`, Mask{Name: "n", Mask: ShowLastFour}))
+		require.Equal(t, "<n>****</n>\n", must(t, `<n>&#xA9;abc</n>`, Mask{Name: "n", Mask: ShowNone}))
+	})
+
+	t.Run("apos and quot are decoded", func(t *testing.T) {
+		require.Equal(t, "<n>O******</n>\n", must(t, `<n>O&apos;Brien</n>`, Mask{Name: "n", Mask: ShowWordStart}))
+		require.Equal(t, "<n>******</n>\n", must(t, `<n>say&quot;hi</n>`, Mask{Name: "n", Mask: ShowNone}))
+	})
+}
+
+func TestPrefixedPathMasking(t *testing.T) {
+	input := strings.TrimSpace(`
+<root xmlns:ct="urn:ct" xmlns:mr="urn:mr">
+  <ct:DbtrAcct>
+    <ct:Id>11000179512199001</ct:Id>
+  </ct:DbtrAcct>
+  <mr:DbtrAcct>
+    <mr:Id>12000194212199001</mr:Id>
+  </mr:DbtrAcct>
+</root>
+`)
+
+	output, err := MarshalIndent(strings.NewReader(input), &Options{
+		Indent: "  ",
+		Masks: []Mask{
+			{Name: "ct:DbtrAcct/ct:Id", Mask: ShowLastFour},
+		},
+	})
+	require.NoError(t, err)
+
+	got := string(output)
+	require.Contains(t, got, `xmlns:ct="urn:ct"`)
+	require.Contains(t, got, `xmlns:mr="urn:mr"`)
+	require.Contains(t, got, "<ct:Id>*************9001</ct:Id>")
+	require.Contains(t, got, "<mr:Id>12000194212199001</mr:Id>")
+	require.NotContains(t, got, "11000179512199001")
+	require.NotContains(t, got, "_xmlns")
+}
+
 func sameShape(a, b []node) error {
 	a = dropSpace(a)
 	b = dropSpace(b)
