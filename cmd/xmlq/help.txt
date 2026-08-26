@@ -12,9 +12,9 @@ DESCRIPTION
        xmlq reads XML from files or standard input and outputs a nicely
        indented ("pretty-printed") version of the document.
 
-       It uses Go's xml.MarshalIndent under the hood and supports basic
-       control over prefix and indent strings. Basic masking support is
-       planned (but not yet active in this version).
+       Output is a pretty-printed copy of the input: namespace prefixes,
+       declarations, self-closing tags, and CDATA sections are preserved.
+       Only insignificant whitespace between elements is rewritten.
 
        When multiple files are given, xmlq prints each one separated by blank
        lines. When reading from stdin, xmlq attempts to detect raw XML content
@@ -62,10 +62,8 @@ EXAMPLES
        xmlq -v -indent $'\t' *.xml
 
 NOTES
-   • Currently only pretty-printing is implemented.
-   • Masking of sensitive values (e.g. PII, keys, tokens) is planned
-     but not yet active (see commented Masks field in source).
-   • CDATA sections are expected to be handled properly in future versions.
+   • The CLI pretty-prints only; element masking is available from the
+     Go library (xmlq.MarshalIndent) and is not yet wired to flags.
    • Input is read into temporary files when coming from stdin and appearing
      to contain XML tags.
 

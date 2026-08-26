@@ -1,3 +1,12 @@
+## Unreleased
+
+IMPROVEMENTS
+
+- rewrite pretty-print so documents keep their namespaces, prefixes, self-closing tags, attribute quoting, and CDATA wrappers
+- pretty-print and mask well-formed XML inside CDATA without promoting it to real elements
+- leave escaped markup in ordinary text as text
+- mask by Unicode rune so multi-byte values stay valid XML; ShowWordStart keeps original spacing
+
 ## v0.3.0 (Released 2026-02-02)
 
 ADDITIONS

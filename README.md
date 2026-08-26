@@ -5,7 +5,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/adamdecaf/xmlq)](https://goreportcard.com/report/github.com/adamdecaf/xmlq)
 [![Apache 2 License](https://img.shields.io/badge/license-Apache2-blue.svg)](https://raw.githubusercontent.com/adamdecaf/xmlq/master/LICENSE)
 
-xmlq is a Go library for pretty printing xml and masking element values. Masks can target a single element name (`Id`) or a partial ancestor chain (`DbtrAcct/Id`) so identifiers you need to keep, such as `<Rpt><Id>`, are left alone. XML inside of CDATA stanzas is also masked and indented.
+xmlq is a Go library for pretty printing xml and masking element values. It changes insignificant whitespace and masked character data only — namespace prefixes, declarations, attribute names, self-closing tags, comments, and CDATA versus parsed text are left alone.
+
+Masks can target a single element name (`Id`) or a partial ancestor chain (`DbtrAcct/Id`) so identifiers you need to keep, such as `<Rpt><Id>`, are left alone. Well-formed XML inside a CDATA section is pretty-printed and masked inside that CDATA section.
 
 ## Install
 
@@ -26,7 +28,7 @@ xmlq ./pkg/xmlq/testdata/admi_002.xml
 ```
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01">
+<Message xmlns="urn:tch" xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01">
   <AppHdr>
   ...
   </AppHdr>
