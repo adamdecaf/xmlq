@@ -89,6 +89,8 @@ func (f *formatter) formatElement(n node) {
 				f.writeText(c)
 			case nodeCDATA:
 				f.writeCDATA(c, true)
+			case nodeXMLDecl, nodePI, nodeComment, nodeDirective, nodeElement:
+				f.formatInline(c)
 			}
 		}
 		f.writeEnd(n)
@@ -128,7 +130,7 @@ func (f *formatter) formatInline(n node) {
 		}
 		f.path = f.path[:len(f.path)-1]
 		f.writeEnd(n)
-	default:
+	case nodeXMLDecl, nodePI, nodeComment, nodeDirective:
 		f.out.Write(n.raw)
 		f.lineStart = false
 	}
@@ -251,7 +253,7 @@ func classify(n node) contentKind {
 			} else if len(bytes.TrimSpace(c.data)) > 0 {
 				hasLeafCDATA = true
 			}
-		case nodeComment, nodePI, nodeDirective:
+		case nodeComment, nodePI, nodeDirective, nodeXMLDecl:
 			hasMisc = true
 		}
 	}
