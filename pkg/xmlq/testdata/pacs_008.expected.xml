@@ -1,4 +1,5 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><Message xmlns="urn:tch" xmlns:_xmlns="xmlns" _xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01" _xmlns:ct="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Message xmlns="urn:tch" xmlns:head="urn:iso:std:iso:20022:tech:xsd:head.001.001.01" xmlns:ct="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
   <AppHdr>
     <head:Fr>
       <head:FIId>
@@ -22,16 +23,16 @@
     <head:MsgDefIdr>pacs.008.001.08</head:MsgDefIdr>
     <head:CreDt>2023-07-21T13:16:01</head:CreDt>
     <head:Sgntr>
-      <ds:Signature _xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-        <ds:SignedInfo _xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-          <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:CanonicalizationMethod>
-          <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>
+      <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+          <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+          <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
           <ds:Reference URI="">
             <ds:Transforms>
-              <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>
-              <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:Transform>
+              <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+              <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
             </ds:Transforms>
-            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>
+            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
             <ds:DigestValue>c0DSwrOlRESdgNmLnxaWijqp5iRJkyOWdvhOLw2+mTk=</ds:DigestValue>
           </ds:Reference>
         </ds:SignedInfo>
