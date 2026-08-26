@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -81,30 +82,104 @@ func TestMasking(t *testing.T) {
 			{Name: "Nm", Space: "ct", Mask: ShowWordStart},
 		}
 
-		elm := xml.StartElement{Name: xml.Name{Local: "Id"}}
+		path := []xml.Name{{Local: "Id"}}
 		expected := &masks[0]
-		output := findMask(elm, masks)
+		output := findMask(path, masks)
 		require.Equal(t, expected, output)
 
-		elm = xml.StartElement{Name: xml.Name{Local: "StrtNm"}}
+		path = []xml.Name{{Local: "StrtNm"}}
 		expected = &masks[1]
-		output = findMask(elm, masks)
+		output = findMask(path, masks)
 		require.Equal(t, expected, output)
 
-		elm = xml.StartElement{Name: xml.Name{Local: "StrtNm", Space: "ct"}}
+		path = []xml.Name{{Local: "StrtNm", Space: "ct"}}
 		expected = &masks[1]
-		output = findMask(elm, masks)
+		output = findMask(path, masks)
 		require.Equal(t, expected, output)
 
-		elm = xml.StartElement{Name: xml.Name{Local: "Nm"}}
+		path = []xml.Name{{Local: "Nm"}}
 		expected = &masks[2]
-		output = findMask(elm, masks)
+		output = findMask(path, masks)
 		require.Equal(t, expected, output)
 
-		elm = xml.StartElement{Name: xml.Name{Local: "Nm", Space: "ct"}}
+		path = []xml.Name{{Local: "Nm", Space: "ct"}}
 		expected = &masks[2]
-		output = findMask(elm, masks)
+		output = findMask(path, masks)
 		require.Equal(t, expected, output)
+	})
+
+	t.Run("find mask by path", func(t *testing.T) {
+		masks := []Mask{
+			{Name: "DbtrAcct/Id", Mask: ShowLastFour},
+			{Name: "Rpt/Id", Mask: ShowNone},
+		}
+
+		dbtrLeaf := []xml.Name{
+			{Local: "CdtTrfTxInf"},
+			{Local: "DbtrAcct"},
+			{Local: "Id"},
+			{Local: "Othr"},
+			{Local: "Id"},
+		}
+		require.Equal(t, &masks[0], findMask(dbtrLeaf, masks))
+
+		dbtrWrapper := []xml.Name{
+			{Local: "DbtrAcct"},
+			{Local: "Id"},
+		}
+		require.Equal(t, &masks[0], findMask(dbtrWrapper, masks))
+
+		rpt := []xml.Name{
+			{Local: "BkToCstmrStmt"},
+			{Local: "Rpt"},
+			{Local: "Id"},
+		}
+		require.Equal(t, &masks[1], findMask(rpt, masks))
+
+		otherId := []xml.Name{
+			{Local: "MktPrctc"},
+			{Local: "Id"},
+		}
+		require.Nil(t, findMask(otherId, masks))
+
+		cdtr := []xml.Name{
+			{Local: "CdtrAcct"},
+			{Local: "Id"},
+			{Local: "Othr"},
+			{Local: "Id"},
+		}
+		require.Nil(t, findMask(cdtr, masks))
+	})
+
+	t.Run("longest path wins", func(t *testing.T) {
+		masks := []Mask{
+			{Name: "Id", Mask: ShowNone},
+			{Name: "DbtrAcct/Id", Mask: ShowLastFour},
+		}
+
+		generic := []xml.Name{{Local: "Rpt"}, {Local: "Id"}}
+		require.Equal(t, &masks[0], findMask(generic, masks))
+
+		specific := []xml.Name{{Local: "DbtrAcct"}, {Local: "Id"}, {Local: "Othr"}, {Local: "Id"}}
+		require.Equal(t, &masks[1], findMask(specific, masks))
+	})
+
+	t.Run("path with prefix", func(t *testing.T) {
+		masks := []Mask{
+			{Name: "ct:DbtrAcct/ct:Id", Mask: ShowLastFour},
+		}
+
+		matched := []xml.Name{
+			{Space: "ct", Local: "DbtrAcct"},
+			{Space: "ct", Local: "Id"},
+		}
+		require.Equal(t, &masks[0], findMask(matched, masks))
+
+		wrongPrefix := []xml.Name{
+			{Space: "mr", Local: "DbtrAcct"},
+			{Space: "mr", Local: "Id"},
+		}
+		require.Nil(t, findMask(wrongPrefix, masks))
 	})
 
 	t.Run("last four", func(t *testing.T) {
@@ -231,4 +306,48 @@ func TestMasking(t *testing.T) {
 			require.Equal(t, cases[i].expected, string(output), fmt.Sprintf("input: %q", cases[i].input))
 		}
 	})
+}
+
+func TestPathMasking(t *testing.T) {
+	input := strings.TrimSpace(`
+<Document>
+  <DbtrAcct>
+    <Id>
+      <Othr>
+        <Id>11000179512199001</Id>
+      </Othr>
+    </Id>
+  </DbtrAcct>
+  <CdtrAcct>
+    <Id>
+      <Othr>
+        <Id>12000194212199001</Id>
+      </Othr>
+    </Id>
+  </CdtrAcct>
+  <Rpt>
+    <Id>stmt-2026-001</Id>
+  </Rpt>
+  <MktPrctc>
+    <Id>frb.fednow.01</Id>
+  </MktPrctc>
+</Document>
+`)
+
+	output, err := MarshalIndent(strings.NewReader(input), &Options{
+		Indent: "  ",
+		Masks: []Mask{
+			{Name: "DbtrAcct/Id", Mask: ShowLastFour},
+			{Name: "Rpt/Id", Mask: ShowNone},
+		},
+	})
+	require.NoError(t, err)
+
+	got := string(output)
+	require.Contains(t, got, "<Id>*************9001</Id>")
+	require.Contains(t, got, "<Id>12000194212199001</Id>")
+	require.Contains(t, got, "<Id>*************</Id>")
+	require.Contains(t, got, "<Id>frb.fednow.01</Id>")
+	require.NotContains(t, got, "11000179512199001")
+	require.NotContains(t, got, "stmt-2026-001")
 }

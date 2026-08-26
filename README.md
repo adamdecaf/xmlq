@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/adamdecaf/xmlq)](https://goreportcard.com/report/github.com/adamdecaf/xmlq)
 [![Apache 2 License](https://img.shields.io/badge/license-Apache2-blue.svg)](https://raw.githubusercontent.com/adamdecaf/xmlq/master/LICENSE)
 
-xmlq is a Go library for pretty printing xml and masking element values. XML inside of CDATA stanzas is also masked and indented.
+xmlq is a Go library for pretty printing xml and masking element values. Masks can target a single element name (`Id`) or a partial ancestor chain (`DbtrAcct/Id`) so identifiers you need to keep, such as `<Rpt><Id>`, are left alone. XML inside of CDATA stanzas is also masked and indented.
 
 ## Install
 
@@ -56,8 +56,9 @@ output, err := xmlq.MarshalIndent(xmlData, &Options{
 	Indent: "  ", // two spaces
 	Masks: []Mask{
 		{
-			// <ct:Id>11000179512199001</ct:Id>
-			Name: "Id",
+			// <DbtrAcct><Id>…</Id></DbtrAcct> — including nested
+			// <DbtrAcct><Id><Othr><Id>. Does not match <Rpt><Id>.
+			Name: "DbtrAcct/Id",
 			Mask: ShowLastFour,
 		},
 		{

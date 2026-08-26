@@ -20,7 +20,7 @@ document.getElementById("add-mask").addEventListener("click", () => {
     const maskDiv = document.createElement("div");
     maskDiv.className = "mask";
     maskDiv.innerHTML = `
-        <input type="text" class="mask-name" placeholder="Element Name" />
+        <input type="text" class="mask-name" placeholder="Id or DbtrAcct/Id" />
         <input type="text" class="mask-space" placeholder="Namespace (optional)" />
         <select class="mask-type">
             <option value="show-last-four">Show Last Four</option>

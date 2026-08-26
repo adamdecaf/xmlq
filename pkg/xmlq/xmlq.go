@@ -16,6 +16,12 @@ type Options struct {
 }
 
 type Mask struct {
+	// Name is the element to mask. A single local name ("Id") matches any
+	// element with that name. A path ("DbtrAcct/Id") matches when the last
+	// segment is the current element and each earlier segment appears as an
+	// ancestor, in order. Intermediate elements may be omitted, so
+	// "DbtrAcct/Id" matches both DbtrAcct/Id and DbtrAcct/Id/Othr/Id, but
+	// not Rpt/Id. Segments may include a prefix ("ct:Id").
 	Name, Space string
 
 	Mask MaskingType
@@ -30,7 +36,7 @@ var (
 	ShowNone      MaskingType = "show-none"
 )
 
-func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Options) error {
+func process(d *xml.Decoder, e *xml.Encoder, path *[]xml.Name, options *Options) error {
 	for {
 		token, err := d.RawToken()
 		if err != nil {
@@ -42,8 +48,7 @@ func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Option
 
 		switch t := token.(type) {
 		case xml.StartElement:
-			mask := findMask(t, options.Masks)
-			*maskStack = append(*maskStack, mask)
+			*path = append(*path, t.Name)
 
 			startCopy := t
 			if startCopy.Name.Space != "" {
@@ -60,13 +65,12 @@ func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Option
 			if bytes.HasPrefix(elm, start) && bytes.HasSuffix(elm, end) && bytes.Contains(elm, middle) {
 				// Recurse to process inner XML with same encoder for proper indentation
 				innerD := xml.NewDecoder(bytes.NewReader(elm))
-				if err := process(innerD, e, maskStack, options); err != nil {
+				if err := process(innerD, e, path, options); err != nil {
 					return fmt.Errorf("rendering inner xml: %w", err)
 				}
 			} else {
-				if len(*maskStack) > 0 {
-					m := (*maskStack)[len(*maskStack)-1]
-					elm = applyMask(elm, m)
+				if len(bytes.TrimSpace(elm)) > 0 {
+					elm = applyMask(elm, findMask(*path, options.Masks))
 				}
 				if err := e.EncodeToken(elm); err != nil {
 					return err
@@ -83,8 +87,8 @@ func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Option
 				return err
 			}
 
-			if len(*maskStack) > 0 {
-				*maskStack = (*maskStack)[:len(*maskStack)-1]
+			if len(*path) > 0 {
+				*path = (*path)[:len(*path)-1]
 			}
 
 		default:
@@ -100,7 +104,7 @@ func process(d *xml.Decoder, e *xml.Encoder, maskStack *[]*Mask, options *Option
 }
 
 // MarshalIndent will unmarshal and remarshal XML with specified element values masked.
-// Masking matches on element names and applying the masking logic specified.
+// Masking matches on element names or partial ancestor paths (see Mask.Name).
 //
 // The XML is remarshaled with indentation while preserving the original structure,
 // including namespace prefixes. Self-closing elements are expanded by the XML decoder/encoder.
@@ -118,8 +122,8 @@ func MarshalIndent(input io.Reader, opts *Options) ([]byte, error) {
 
 	d := xml.NewDecoder(input)
 
-	var maskStack []*Mask
-	if err := process(d, e, &maskStack, &options); err != nil {
+	var path []xml.Name
+	if err := process(d, e, &path, &options); err != nil {
 		return nil, err
 	}
 
@@ -175,20 +179,83 @@ func isClosingTag(line []byte) bool {
 	return len(s) > 1 && s[0] == '<' && s[1] == '/'
 }
 
-func findMask(start xml.StartElement, masks []Mask) *Mask {
-	for i := range masks {
-		namesMatch := strings.EqualFold(start.Name.Local, masks[i].Name)
+type pathSeg struct {
+	Space, Local string
+}
 
-		spacesMatch := true
-		if start.Name.Space != "" && masks[i].Space != "" {
-			spacesMatch = strings.EqualFold(start.Name.Space, masks[i].Space)
+func parseMaskPath(name string) []pathSeg {
+	var out []pathSeg
+	for _, part := range strings.Split(name, "/") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
 		}
-
-		if namesMatch && spacesMatch {
-			return &masks[i]
+		if i := strings.LastIndex(part, ":"); i >= 0 {
+			out = append(out, pathSeg{Space: part[:i], Local: part[i+1:]})
+		} else {
+			out = append(out, pathSeg{Local: part})
 		}
 	}
-	return nil
+	return out
+}
+
+func nameMatches(name xml.Name, local, space string) bool {
+	if !strings.EqualFold(name.Local, local) {
+		return false
+	}
+	if name.Space != "" && space != "" {
+		return strings.EqualFold(name.Space, space)
+	}
+	return true
+}
+
+func pathMatches(path []xml.Name, parts []pathSeg, targetSpace string) bool {
+	if len(parts) == 0 || len(path) < len(parts) {
+		return false
+	}
+
+	cur := path[len(path)-1]
+	last := parts[len(parts)-1]
+	space := last.Space
+	if targetSpace != "" {
+		space = targetSpace
+	}
+	if !nameMatches(cur, last.Local, space) {
+		return false
+	}
+
+	ei := len(path) - 2
+	for pi := len(parts) - 2; pi >= 0; pi-- {
+		found := false
+		for ei >= 0 {
+			if nameMatches(path[ei], parts[pi].Local, parts[pi].Space) {
+				found = true
+				ei--
+				break
+			}
+			ei--
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func findMask(path []xml.Name, masks []Mask) *Mask {
+	var best *Mask
+	bestLen := 0
+	for i := range masks {
+		parts := parseMaskPath(masks[i].Name)
+		if !pathMatches(path, parts, masks[i].Space) {
+			continue
+		}
+		if best == nil || len(parts) > bestLen {
+			best = &masks[i]
+			bestLen = len(parts)
+		}
+	}
+	return best
 }
 
 func applyMask(elm xml.CharData, mask *Mask) xml.CharData {
